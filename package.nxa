@@ -1,0 +1,14 @@
+package
+
+    name        = "nexa-json"
+    version     = "0.2.0"
+    description = "JSON utilities for Nexa — native node serialization, file I/O, nested path access, and data operations"
+    author      = "Nexa Team"
+    license     = "MIT"
+    entry       = "src/json.nxa"
+
+scripts
+
+    test           = "nexa run tests/json_test.nxa"
+    example        = "nexa run examples/basic.nxa"
+    example:native = "nexa run examples/native_object.nxa"

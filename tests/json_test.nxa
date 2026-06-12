@@ -1,0 +1,259 @@
+# nexa-json v0.2.0 — full test suite
+#
+# Run: nexa run tests/json_test.nxa
+# (from inside packages/nexa-json/)
+
+import Json from "src/json.nxa"
+
+let PASS = 0
+let FAIL = 0
+
+action check(name, actual, expected)
+    if actual == expected
+        set PASS = PASS + 1
+        show "  PASS  {name}"
+    else
+        set FAIL = FAIL + 1
+        show "  FAIL  {name}"
+        show "        expected: {expected}"
+        show "        actual:   {actual}"
+
+# ── Test 1: parse + stringify round-trip ─────────────────────────────────────
+show "--- Test 1: parse + stringify round-trip ---"
+let raw1     = '{"name":"Nexa","count":42,"flag":true}'
+let obj1     = Json.parse(raw1)
+let back1    = Json.stringify(obj1)
+let reParsed = Json.parse(back1)
+
+check("name round-trip",  Json.get(reParsed, "name"),  "Nexa")
+check("count round-trip", Json.get(reParsed, "count"), 42)
+check("flag round-trip",  Json.get(reParsed, "flag"),  true)
+
+# ── Test 2: get + set ─────────────────────────────────────────────────────────
+show "--- Test 2: get + set ---"
+let obj2    = Json.parse('{"x":1,"y":2}')
+let updated = Json.set(obj2, "x", 99)
+
+check("set x",       Json.get(updated, "x"), 99)
+check("y unchanged", Json.get(updated, "y"), 2)
+
+# ── Test 3: keys + values ─────────────────────────────────────────────────────
+show "--- Test 3: keys + values ---"
+let obj3 = Json.parse('{"a":1,"b":2,"c":3}')
+
+check("keys count",   len(Json.keys(obj3)),   3)
+check("values count", len(Json.values(obj3)), 3)
+
+# ── Test 4: has + remove ──────────────────────────────────────────────────────
+show "--- Test 4: has + remove ---"
+let obj4        = Json.parse('{"keep":1,"drop":2}')
+let withoutDrop = Json.remove(obj4, "drop")
+
+check("has keep",         Json.has(obj4,        "keep"), true)
+check("has drop",         Json.has(obj4,        "drop"), true)
+check("removed drop",     Json.has(withoutDrop, "drop"), false)
+check("remove kept keep", Json.has(withoutDrop, "keep"), true)
+
+# ── Test 5: merge ─────────────────────────────────────────────────────────────
+show "--- Test 5: merge ---"
+let base   = Json.parse('{"a":1}')
+let extra  = Json.parse('{"b":2,"a":99}')
+let merged = Json.merge(base, extra)
+
+check("merge override a", Json.get(merged, "a"), 99)
+check("merge adds b",     Json.get(merged, "b"), 2)
+
+# ── Test 6: size + isEmpty ────────────────────────────────────────────────────
+show "--- Test 6: size + isEmpty ---"
+let objFull  = Json.parse('{"x":1,"y":2,"z":3}')
+let objEmpty = Json.parse('{}')
+
+check("size 3",          Json.size(objFull),     3)
+check("size 0",          Json.size(objEmpty),    0)
+check("isEmpty true",    Json.isEmpty(objEmpty), true)
+check("isEmpty false",   Json.isEmpty(objFull),  false)
+
+# ── Test 7: file create / read / update / delete cycle ───────────────────────
+show "--- Test 7: file create / read / update / delete ---"
+let testFile = "tmp_nexa_json_test.json"
+
+let createOk    = Json.create(testFile, { lang = "Nexa"  v = 1 })
+let createAgain = Json.create(testFile, { lang = "Other" })
+
+check("create ok",          createOk,    true)
+check("create no overwrite", createAgain, false)
+
+let readBack = Json.read(testFile)
+check("read lang",  Json.get(readBack, "lang"), "Nexa")
+check("read v",     Json.get(readBack, "v"),    1)
+
+let afterUpdate = Json.update(testFile, "v", 2)
+check("update v",   Json.get(afterUpdate, "v"), 2)
+
+let deleteOk = Json.delete(testFile)
+check("delete ok",  deleteOk,                 true)
+check("gone",       Json.exists(testFile),    false)
+
+# ── Test 8: pretty is non-empty and contains keys ────────────────────────────
+show "--- Test 8: pretty ---"
+let obj8   = Json.parse('{"hello":"world"}')
+let pretty = Json.pretty(obj8)
+
+check("pretty non-empty",    len(pretty) > 0,         true)
+check("pretty has key",      contains(pretty, "hello"), true)
+check("pretty has value",    contains(pretty, "world"), true)
+
+# ── Test 9: Node serialization — Json.write(path, Node) ──────────────────────
+show "--- Test 9: node serialization ---"
+node TestPlayer
+    name   = "Arthur"
+    health = 100
+    level  = 5
+
+let nodeFile = "tmp_node_test.json"
+let nodeOk   = Json.write(nodeFile, TestPlayer)
+check("write node ok", nodeOk, true)
+
+let nodeLoaded = Json.read(nodeFile)
+check("node name",   Json.get(nodeLoaded, "name"),   "Arthur")
+check("node health", Json.get(nodeLoaded, "health"), 100)
+check("node level",  Json.get(nodeLoaded, "level"),  5)
+Json.delete(nodeFile)
+
+# ── Test 10: Nexa-style object literal { key = value } ───────────────────────
+show "--- Test 10: Nexa-style object literal ---"
+let nativeUser = {
+    name   = "Mahmoud"
+    level  = 15
+    active = true
+}
+
+let nativeFile = "tmp_native_test.json"
+Json.write(nativeFile, nativeUser)
+let nLoaded = Json.read(nativeFile)
+
+check("native name",   Json.get(nLoaded, "name"),   "Mahmoud")
+check("native level",  Json.get(nLoaded, "level"),  15)
+check("native active", Json.get(nLoaded, "active"), true)
+Json.delete(nativeFile)
+
+# ── Test 11: nested object literal ───────────────────────────────────────────
+show "--- Test 11: nested object literal ---"
+let nested = {
+    user = {
+        name  = "Alex"
+        stats = {
+            xp = 2400
+        }
+    }
+}
+
+let nestedFile = "tmp_nested_test.json"
+Json.write(nestedFile, nested)
+let n = Json.read(nestedFile)
+
+check("nested name",    n.user.name,       "Alex")
+check("nested xp",      n.user.stats.xp,  2400)
+Json.delete(nestedFile)
+
+# ── Test 12: list of objects ──────────────────────────────────────────────────
+show "--- Test 12: list of objects ---"
+let userList = [
+    { name = "Arthur"  level = 10 },
+    { name = "Noura"   level = 99 }
+]
+
+let listFile = "tmp_list_test.json"
+Json.write(listFile, userList)
+let loaded12 = Json.read(listFile)
+
+check("list length",      len(loaded12),             2)
+check("list[0].name",     loaded12[0].name,          "Arthur")
+check("list[1].level",    loaded12[1].level,          99)
+Json.delete(listFile)
+
+# ── Test 13: getPath + setPath + deletePath ───────────────────────────────────
+show "--- Test 13: getPath / setPath / deletePath ---"
+let deep = {
+    a = {
+        b = {
+            c = 42
+        }
+    }
+}
+
+check("getPath found",   Json.getPath(deep, ["a", "b", "c"]), 42)
+check("getPath missing", Json.getPath(deep, ["a", "x", "c"]), null)
+
+let deepSet  = Json.setPath(deep, ["a", "b", "c"], 99)
+check("setPath",         Json.getPath(deepSet, ["a", "b", "c"]), 99)
+
+let deepDel  = Json.deletePath(deepSet, ["a", "b", "c"])
+check("deletePath",      Json.getPath(deepDel, ["a", "b", "c"]), null)
+
+# ── Test 14: clone ────────────────────────────────────────────────────────────
+show "--- Test 14: clone ---"
+let orig  = { x = 1  y = 2 }
+let copy  = Json.clone(orig)
+let modded = Json.set(copy, "x", 99)
+
+check("clone original unchanged", Json.get(orig, "x"),   1)
+check("clone modified copy",      Json.get(modded, "x"), 99)
+
+# ── Test 15: exists ───────────────────────────────────────────────────────────
+show "--- Test 15: exists ---"
+let existsFile = "tmp_exists_test.json"
+check("not exists before", Json.exists(existsFile), false)
+Json.write(existsFile, { ok = true })
+check("exists after write", Json.exists(existsFile), true)
+Json.delete(existsFile)
+
+# ── Test 16: invalid JSON handling ───────────────────────────────────────────
+show "--- Test 16: invalid JSON ---"
+let badParse = Json.parse("not json {{{")
+check("parse invalid returns null", badParse, null)
+
+# ── Test 17: folder auto-creation ────────────────────────────────────────────
+show "--- Test 17: folder auto-creation ---"
+let deepFile = "tmp_deep_dir/sub/test.json"
+let deepOk   = Json.write(deepFile, { created = true })
+check("deep write ok",  deepOk,                    true)
+check("deep exists",    Json.exists(deepFile),     true)
+Json.delete(deepFile)
+
+# ── Test 18: clear ────────────────────────────────────────────────────────────
+show "--- Test 18: clear ---"
+let clearFile = "tmp_clear_test.json"
+Json.write(clearFile, { data = "value" })
+Json.clear(clearFile)
+let cleared = Json.read(clearFile)
+check("clear isEmpty", Json.isEmpty(cleared), true)
+Json.delete(clearFile)
+
+# ── Test 19: getIn (alias for read + getPath) ─────────────────────────────────
+show "--- Test 19: getIn ---"
+let ginFile = "tmp_getin_test.json"
+Json.write(ginFile, { user = { name = "Alex" } })
+let ginName = Json.getIn(ginFile, ["user", "name"])
+check("getIn nested", ginName, "Alex")
+Json.delete(ginFile)
+
+# ── Test 20: toMap strips internals ──────────────────────────────────────────
+show "--- Test 20: toMap ---"
+node MapNode
+    visible = "yes"
+    score   = 42
+
+let asMap = Json.toMap(MapNode)
+check("toMap visible", Json.get(asMap, "visible"), "yes")
+check("toMap score",   Json.get(asMap, "score"),   42)
+
+# ── Summary ───────────────────────────────────────────────────────────────────
+show ""
+show "================================"
+show "nexa-json tests: {PASS} passed  {FAIL} failed"
+if FAIL == 0
+    show "All tests passed."
+else
+    show "Some tests FAILED."
+show "================================"

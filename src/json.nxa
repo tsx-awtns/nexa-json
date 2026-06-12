@@ -1,0 +1,233 @@
+# nexa-json v0.2.0
+# JSON utilities for Nexa — file I/O, parsing, serialization, and data access.
+#
+# Write data using Nexa syntax.  nexa-json converts it to JSON automatically.
+#
+# Preferred Nexa style:
+#
+#   node User
+#       name  = "Mahmoud"
+#       level = 15
+#
+#   Json.write("data/user.json", User)    # writes proper JSON
+#   let loaded = Json.read("data/user.json")
+#   show loaded.name                       # Mahmoud
+#
+# All runtime built-ins used:
+#   fileRead / fileWrite / fileExists / fileDelete / fileReadRaw / fileWriteRaw
+#   jsonParse / jsonStringify / jsonPretty
+#   toPlainObject / nodeToMap / mapToNode
+#   keys / values_ / hasKey / merge / get_ / set_ / delete_
+#
+# Import as a namespace alias:
+#   import Json from "nexa-json"
+#   Json.read("data.json")
+#
+# Or selectively:
+#   import { read, write, parse, stringify } from "nexa-json"
+
+namespace Json
+
+    # =========================================================================
+    # File operations
+    # =========================================================================
+
+    # Read a JSON file and return its parsed value.
+    # Supports dot-access on the returned object:  data.name  data.level
+    # Returns null if the file does not exist or contains invalid JSON.
+    func read(filePath)
+        return fileRead(filePath)
+
+    # Write any Nexa value to a JSON file (pretty-printed, 2-space indent).
+    # Accepts nodes, maps, lists, and primitives.
+    # Automatically creates parent directories if they do not exist.
+    # Returns true on success, false on failure.
+    #
+    # Example:
+    #   node Player
+    #       name   = "Arthur"
+    #       health = 100
+    #   Json.write("data/player.json", Player)
+    func write(filePath, data)
+        return fileWrite(filePath, data)
+
+    # Return true if a JSON file exists at the given path.
+    func exists(filePath)
+        return fileExists(filePath)
+
+    # Delete a JSON file.  Returns true on success, false if file missing.
+    # Will NOT delete directories — only files.
+    func delete(filePath)
+        return fileDelete(filePath)
+
+    # Create a new JSON file with the given data.
+    # Returns false (without overwriting) if the file already exists.
+    # Automatically creates parent directories.
+    func create(filePath, data)
+        if fileExists(filePath)
+            return false
+        return fileWrite(filePath, data)
+
+    # Remove all content from a JSON file by writing an empty object {}.
+    # The file is kept on disk but its content is reset.
+    func clear(filePath)
+        return fileWrite(filePath, {})
+
+    # =========================================================================
+    # Parsing and serialization
+    # =========================================================================
+
+    # Parse a JSON string into a Nexa value.
+    # Returns null if the string is not valid JSON.
+    func parse(text)
+        return jsonParse(text)
+
+    # Serialize a Nexa value to a compact JSON string (no whitespace).
+    # Accepts nodes, maps, lists, and primitives.
+    func stringify(data)
+        return jsonStringify(data)
+
+    # Serialize a Nexa value to a readable indented JSON string.
+    # Optional second argument sets the indent size (default: 2).
+    func pretty(data, indent)
+        return jsonPretty(data, indent)
+
+    # =========================================================================
+    # Data access — operate on parsed JSON objects (maps)
+    # =========================================================================
+
+    # Get a top-level value by key.
+    # Returns null if the key does not exist.
+    func get(data, key)
+        return get_(data, key)
+
+    # Set a top-level key and return the updated object (non-mutating).
+    func set(data, key, value)
+        return set_(data, key, value)
+
+    # Delete a top-level key and return the updated object.
+    func remove(data, key)
+        return delete_(data, key)
+
+    # Return true if the object has the given top-level key.
+    func has(data, key)
+        return hasKey(data, key)
+
+    # Return all top-level keys as a list.
+    func keys(data)
+        return keys(data)
+
+    # Return all top-level values as a list.
+    func values(data)
+        return values_(data)
+
+    # Merge two objects.  Keys in b override keys in a.
+    # Returns a new merged object.
+    func merge(a, b)
+        return merge(a, b)
+
+    # Return the number of top-level keys.
+    func size(data)
+        let k = keys(data)
+        if k == null
+            return 0
+        return len(k)
+
+    # Return true if the object has no top-level keys.
+    func isEmpty(data)
+        return Json.size(data) == 0
+
+    # Return a deep copy of the object (no shared references).
+    func clone(data)
+        let text = jsonStringify(data)
+        if text == null
+            return null
+        return jsonParse(text)
+
+    # =========================================================================
+    # Nested path access
+    # =========================================================================
+
+    # Get a value at a nested key path.
+    # path is a list of string keys.
+    #
+    # Example:
+    #   let name = Json.getPath(data, ["user", "profile", "name"])
+    func getPath(data, path)
+        let current = data
+        each key in path
+            if current == null
+                return null
+            set current = get_(current, key)
+        return current
+
+    # Set a value at a nested key path and return the updated root object.
+    # Intermediate objects are created automatically if they do not exist.
+    #
+    # Example:
+    #   let updated = Json.setPath(data, ["stats", "level"], 20)
+    func setPath(data, path, value)
+        if data == null
+            return null
+        let pathLen = len(path)
+        if pathLen == 0
+            return data
+        if pathLen == 1
+            return set_(data, path[0], value)
+        let head = path[0]
+        let tail = slice(path, 1)
+        let child = get_(data, head)
+        if child == null
+            set child = {}
+        let updatedChild = Json.setPath(child, tail, value)
+        return set_(data, head, updatedChild)
+
+    # Delete a value at a nested key path and return the updated root object.
+    #
+    # Example:
+    #   let updated = Json.deletePath(data, ["user", "tempToken"])
+    func deletePath(data, path)
+        if data == null
+            return null
+        let pathLen = len(path)
+        if pathLen == 0
+            return data
+        if pathLen == 1
+            return delete_(data, path[0])
+        let head = path[0]
+        let tail = slice(path, 1)
+        let child = get_(data, head)
+        if child == null
+            return data
+        let updatedChild = Json.deletePath(child, tail)
+        return set_(data, head, updatedChild)
+
+    # =========================================================================
+    # Combined file + data operations
+    # =========================================================================
+
+    # Read a JSON file, update a single top-level key, and write it back.
+    # Returns the updated object, or null if the file could not be read.
+    func update(filePath, key, value)
+        let data = fileRead(filePath)
+        if data == null
+            return null
+        let updated = set_(data, key, value)
+        fileWrite(filePath, updated)
+        return updated
+
+    # Read a JSON file and get the value at a nested path.
+    # Equivalent to:  Json.getPath(Json.read(file), path)
+    func getIn(filePath, path)
+        let data = fileRead(filePath)
+        if data == null
+            return null
+        return Json.getPath(data, path)
+
+    # Convert a Nexa node (or any value) to a plain JSON-safe map.
+    # Strips functions, actions, and runtime internals.
+    # Useful to inspect what Json.write will produce.
+    func toMap(value)
+        return toPlainObject(value)
+
+export Json

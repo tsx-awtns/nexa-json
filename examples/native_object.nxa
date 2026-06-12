@@ -1,0 +1,76 @@
+# nexa-json — native Nexa object literal example  (v0.2.0)
+# Shows Nexa-style  key = value  syntax for all object/list literals.
+#
+# Run: nexa run examples/native_object.nxa
+# (from inside packages/nexa-json/)
+
+import Json from "src/json.nxa"
+
+# ── Nexa-style map literal ────────────────────────────────────────────────────
+let user = {
+    name   = "Mahmoud"
+    level  = 15
+    active = true
+}
+
+Json.write("data/native_user.json", user)
+let loaded = Json.read("data/native_user.json")
+show loaded.name
+show loaded.level
+
+# ── Nested object literal ─────────────────────────────────────────────────────
+let profile = {
+    username = "Mahmoud"
+    stats    = {
+        level = 15
+        xp    = 2400
+        rank  = "Champion"
+    }
+}
+
+Json.write("data/native_profile.json", profile)
+let p = Json.read("data/native_profile.json")
+show p.username
+show p.stats.xp
+
+let level = Json.getPath(p, ["stats", "level"])
+show "Nested level: {level}"
+
+# ── List of objects ───────────────────────────────────────────────────────────
+let users = [
+    {
+        name  = "Arthur"
+        level = 10
+    },
+    {
+        name  = "Noura"
+        level = 99
+    }
+]
+
+Json.write("data/native_users.json", users)
+let list = Json.read("data/native_users.json")
+for u in list
+    show "{u.name} — level {u.level}"
+
+# ── Node serialization ────────────────────────────────────────────────────────
+node Player
+    name   = "Arthur"
+    health = 100
+    level  = 5
+
+# A node is written exactly like a map literal — just pass it directly.
+Json.write("data/native_player.json", Player)
+let pl = Json.read("data/native_player.json")
+show "Player from JSON: {pl.name}  health={pl.health}  level={pl.level}"
+
+# ── Inspect what will be written (toMap) ─────────────────────────────────────
+let asMap = Json.toMap(Player)
+show "toMap result: {asMap}"
+
+# ── Cleanup ───────────────────────────────────────────────────────────────────
+Json.delete("data/native_user.json")
+Json.delete("data/native_profile.json")
+Json.delete("data/native_users.json")
+Json.delete("data/native_player.json")
+show "Done."

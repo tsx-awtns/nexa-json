@@ -1,0 +1,95 @@
+# nexa-json — basic usage example  (v0.2.0)
+# Demonstrates native Nexa node serialization.
+#
+# Run: nexa run examples/basic.nxa
+# (from inside packages/nexa-json/)
+
+import Json from "src/json.nxa"
+
+# ── 1. Define a node and write it directly to JSON ───────────────────────────
+# No JSON syntax needed — write plain Nexa node syntax.
+
+node User
+    name   = "Mahmoud"
+    level  = 15
+    active = true
+    role   = "Developer"
+
+Json.write("data/user.json", User)
+show "Written: data/user.json"
+
+# ── 2. Read the JSON file back ────────────────────────────────────────────────
+let loaded = Json.read("data/user.json")
+
+show loaded.name
+show loaded.level
+show loaded.active
+
+# ── 3. Use Json.get for explicit key access ───────────────────────────────────
+let role = Json.get(loaded, "role")
+show "Role: {role}"
+
+# ── 4. Update a single field in-file ─────────────────────────────────────────
+let after = Json.update("data/user.json", "level", 16)
+show "Level after update: {after.level}"
+
+# ── 5. Nexa-style map literal — no JSON braces needed ────────────────────────
+let config = {
+    name    = "my-app"
+    version = "0.1.0"
+    debug   = false
+}
+Json.write("data/config.json", config)
+
+let cfg = Json.read("data/config.json")
+show "App: {cfg.name}  version: {cfg.version}"
+
+# ── 6. Nested data ────────────────────────────────────────────────────────────
+let profile = {
+    username = "Mahmoud"
+    stats    = {
+        level = 15
+        xp    = 2400
+    }
+}
+Json.write("data/profile.json", profile)
+
+let p = Json.read("data/profile.json")
+show "XP: {p.stats.xp}"
+
+let xp = Json.getPath(p, ["stats", "xp"])
+show "getPath xp: {xp}"
+
+# ── 7. Set a nested path ──────────────────────────────────────────────────────
+let promoted = Json.setPath(p, ["stats", "level"], 20)
+show "Promoted level: {promoted.stats.level}"
+
+# ── 8. In-memory operations ───────────────────────────────────────────────────
+let withTag = Json.set(loaded, "tag", "v1")
+show "Tag: {withTag.tag}"
+
+let noTag = Json.remove(withTag, "tag")
+show "Has tag: {Json.has(noTag, "tag")}"
+
+let allKeys = Json.keys(loaded)
+show "Keys: {allKeys}"
+
+# ── 9. Merge two objects ──────────────────────────────────────────────────────
+let extra  = { author = "Nexa Team"  license = "MIT" }
+let merged = Json.merge(loaded, extra)
+show "Author: {merged.author}"
+
+# ── 10. Clone, size, isEmpty ──────────────────────────────────────────────────
+let copy  = Json.clone(loaded)
+show "Cloned name: {copy.name}"
+show "Size: {Json.size(loaded)}"
+show "Empty: {Json.isEmpty({})}"
+
+# ── 11. Pretty print ──────────────────────────────────────────────────────────
+show Json.pretty(loaded)
+
+# ── Cleanup ───────────────────────────────────────────────────────────────────
+Json.delete("data/user.json")
+Json.delete("data/config.json")
+Json.delete("data/profile.json")
+show "Done."
